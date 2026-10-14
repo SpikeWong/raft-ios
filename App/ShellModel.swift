@@ -4,7 +4,6 @@ import SwiftUI
 final class ShellModel: ObservableObject {
     @Published var browser: BrowserSession?
     @Published var editingConnection = false
-    @Published var clearingData = false
     let store: ConnectionStore
 
     init() {
@@ -19,7 +18,7 @@ final class ShellModel: ObservableObject {
         #else
         store = ConnectionStore()
         #endif
-        if let active = store.active { attach(active) }
+        if let active = store.active { attach(active) } else { WidgetBridge.clearUnconfigured() }
     }
 
     func connect(_ address: String) throws {
@@ -31,18 +30,14 @@ final class ShellModel: ObservableObject {
         editingConnection = false
     }
 
+    func openWidget(_ url: URL) {
+        guard let browser, let path = WidgetSnapshot.route(for: url, activeProfile: browser.profile.id) else { return }
+        editingConnection = false
+        browser.openWidgetRoute(path)
+    }
+
     private func attach(_ profile: ConnectionProfile) {
         browser = BrowserSession(profile: profile) { [weak store] url in store?.remember(url, for: profile) }
     }
 
-    func clearCurrentData() async {
-        guard let current = browser else { return }
-        clearingData = true
-        // Remove the old WebView from the hierarchy before clearing its store.
-        browser = nil
-        await current.clearData()
-        store.forgetPath(for: current.profile)
-        if let active = store.active { attach(active) }
-        clearingData = false
-    }
 }

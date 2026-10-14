@@ -1,15 +1,16 @@
-# Raft Personal iOS — 产品与架构基线
+# Raft iOS 产品与架构基线
 
 # Raft Personal iOS
 
-一个可配置部署地址的非官方 Raft iOS 客户端：在线加载现有 Raft 手机 Web UI，原生仅负责连接配置、网页生命周期与系统导航。
+一个可配置部署地址的非官方 Raft iOS 客户端：在线加载现有 Raft 手机 Web UI，原生负责连接配置、网页生命周期、系统导航与只读 Widget 摘要。
 
 ## 项目范围
 
 - SwiftUI + WKWebView，最低 iOS 17；不包含或修改 Raft Web / 服务端源码。
 - 只配置网页根地址；API、Socket、认证与产品导航由目标网页负责。
 - 不注入 RaftHost，不重写登录或消息同步，不接 APNs 或外部 OAuth 回调。
-- 相同地址的网页部署升级通常无需重新发布原生 App；域名、认证合同或原生能力变化需要重新评估。
+- Settings 服务器设置、Widget 摘要、附件预览与触摸策略依赖文档化的网页 DOM/API 合同；网页合同变化需要重新评估。
+- Widget 使用同源只读 API 和 App Group 摘要；不在扩展中保存认证信息或独立登录。
 - Bundle Identifier 使用通用示例，签名 Team 由使用者本地配置。
 
 ## 文档入口
@@ -35,6 +36,7 @@
 - 原生不保存或导出密码、token、cookie 或私有部署测试数据。
 - 不提交个人域名、签名配置、凭据、本机路径、设备标识或构建产物。
 
+
 ---
 
 # 产品需求 v0.1
@@ -51,14 +53,14 @@
 
 目标网页应提供手机布局、用户登录与消息同步。原生外壳不会补全目标部署缺失的业务功能。
 
-部署地址由使用者填写。不同部署的认证与上传行为需要独立联调；示例域名不代表可用服务。
+需要一个可用的 Raft Web 部署。登录、消息与附件行为须在目标部署和真实 iPhone 上验证；示例域名仅作说明。
 
 ## 核心流程
 
 1. 首次启动进入“连接你的 Raft”。输入 Raft **网页地址**，界面显示规范化后的地址。
 2. 点“连接”，加载该部署现有手机 Web UI；登录使用网页原有表单。
-3. 聊天/任务/成员/设置导航仍由 Web 提供；连接后不显示顶部网址栏；外壳只提供角落的小连接菜单，不加第二套底部导航。网页延伸到屏幕底部，由 Web 处理底部导航安全区域。
-4. 使用连接菜单返回、刷新、更换地址或清除当前连接的登录数据。
+3. 聊天/任务/成员/设置导航仍由 Web 提供；连接后不显示顶部网址栏；外壳不显示常驻连接菜单，不加第二套底部导航。网页延伸到屏幕底部，由 Web 处理底部导航安全区域。
+4. 在 Settings 的“App 连接”区域修改服务器地址；使用站内列表样式。
 5. 正常重开恢复配置与登录。加载失败可重试或改地址，不删除登录。
 6. 更换网络部署时使用独立数据存储；再次回到该部署时可恢复其登录。
 
@@ -68,8 +70,8 @@
 |---|---|---|
 | FR-01 | P0 | 配置页沿用 Raft 的黄色顶栏、粗边框、硬阴影和字体层级；输入与保存部署网页地址，无需编译；支持 HTTPS 和本地开发 HTTP，明确拒绝非法地址 |
 | FR-02 | P0 | 直接展示现有手机 Web UI，不重写页面、任务模型或消息同步 |
-| FR-03 | P0 | 保留登录；不同部署使用独立存储；清除数据仅影响当前连接 |
-| FR-04 | P0 | 提供网页返回、刷新、改地址；支持网页新窗口与外链的明确处理 |
+| FR-03 | P0 | 保留登录；不同部署使用独立存储 |
+| FR-04 | P0 | Settings 只提供服务器地址设置；支持网页新窗口与外链的明确处理 |
 | FR-05 | P0 | 显示首次加载、网络/HTTP 错误与重试；临时失败不触发登出 |
 | FR-06 | P0 | 不破坏 Web 草稿、频道导航、滚动和输入；前台恢复时沿用 Web 重连，不强制刷新 |
 | FR-07 | P0 | 适配键盘、安全区域、暗色模式和 iPhone 横竖屏；不默认启用桌面 UI |
@@ -100,6 +102,23 @@
 
 模拟器可以证明外壳流程、存储、路由和布局工作，不能代替目标部署的登录、消息/附件或真实锁屏推送验收。当前实现范围详见 [FEATURELIST.md](FEATURELIST.md)，验证报告在项目外保存。
 
+## Widget（0.2.0）
+
+FR-17：提供 iPhone 桌面小号／中号 Widget，展示当前协作空间可见任务的待办、进行中、待审核数量，未读消息／Activity 通知，以及最近任务与最后同步时间。点任务或通知进入 App 对应页面。没有数据、未登录、请求失败、数据过期分别表达，未知数字显示“—”，不能伪装成零。
+
+网页登录仍是唯一认证所有者。App 前台以当前网页会话读取同源 API，只把经校验的计数、任务摘要、配置标识和时间共享给 Widget；不共享 access/refresh token。切换部署或注销时清除旧摘要。Widget 展示最近一次 App 同步的快照，不提供独立后台登录或 APNs 实时通知。WidgetKit 调度刷新；历史快照超过 15 分钟显示“打开 App 更新”。
+
+
+## FR-18 附件预览高度兼容
+
+2026-10-13：用户截图显示竖图附件越过预览框、遮住输入框。个人外壳对同源主页面注入局部 CSS，使图片附件的悬停／拖动容器继承预览框高度。保持 Web 的颜色、尺寸和拖动／删除功能，不修改 Raft Web 或部署后端。成功标准：竖图、方图、横图都留在原预览框中；草稿不被覆盖，删除按钮仍可点击，普通文件卡片保持原布局。
+
+
+## FR-19 首页触摸防误触
+
+2026-10-13：用户反馈首页容易意外切换 tab 和 Agent 排序。关闭 WebView 的边缘前进／后退手势，保留网页 tab 按钮和显式返回按钮。仅在 Sidebar 可排序项内，触摸 pointerdown 不启动即时 PointerSensor；既有 TouchSensor 按住约500ms的路径保留。短滑动允许页面滚动，普通点按仍打开对应项，鼠标／键盘排序和菜单按钮保持原行为。
+
+
 ---
 
 # Architecture v0.1
@@ -116,6 +135,8 @@ flowchart LR
   W --> H[现有 Raft 手机 Web]
   H --> A[Web 已配置的 REST API]
   H --> R[Socket.IO 与同步]
+  H --> B[可选 RaftHost 生命周期事件]
+  B --> S
 ```
 
 只有 Web 发业务请求；外壳首版不复制 REST SDK、消息库或 token 刷新。外壳通过系统 WebKit 打开真实网页，页面内容随 Web 部署更新。
@@ -129,17 +150,17 @@ flowchart LR
 | `BrowserSession` | 长寿命 WKWebView、KVO 状态、加载错误、返回/重试、进程终止恢复 |
 | `RaftWebView` | 把现有 WebView 挂到 SwiftUI；视图刷新不重建浏览器 |
 | `ConnectionView` | 配置地址与输入错误；保留之前可用的连接 |
-| `ShellView` | 加载/错误状态、轻量连接菜单、安全区域和应用生命周期 |
+| `ShellView` | 加载/错误状态、Settings 连接操作、安全区域和应用生命周期 |
 
 ## App 图标
 
-`App/Assets.xcassets/AppIcon.appiconset` 保存 1024px 不透明 PNG，使用项目独立生成的通用连接图标。Xcode 资产编译器生成系统需要的图标尺寸；不预裁圆角，不引入图片生成服务或运行时下载。
+`App/Assets.xcassets/AppIcon.appiconset` 保存 1024px 不透明 PNG，复用 Raft 现有黄色品牌资源。Xcode 资产编译器生成系统需要的图标尺寸；不预裁圆角，不引入图片生成服务或运行时下载。
 
 ## 状态与生命周期
 
 `未配置 → 编辑配置 → 加载 → 浏览`；加载失败进入 `可重试错误`，但保留配置和 Web 数据。
 
-- “刷新”显式刷新网页，可能重置未保存页面状态，故不在每次前台恢复时自动执行。
+- 正常浏览时不提供外壳刷新按钮；加载错误页保留重试和回首页以恢复连接，不在每次前台恢复时自动刷新。
 - 进入后台不自行断开或维护 Socket；Web/iOS 决定暂停，返回前台交给现有 Web 的同步重连。
 - WKWebView 必须保存在长寿命 `BrowserSession` 中，不随着 SwiftUI body/菜单变化重建。
 - Web 内容进程被系统终止时，展示恢复入口或恢复最近的安全同源路径，避免死循环重载。
@@ -149,7 +170,7 @@ flowchart LR
 
 最低系统版本：**iOS 17**，采用 `WKWebsiteDataStore(forIdentifier:)` 对每个规范化 Web origin 建立独立持久存储。保留 Web 自身 token/cookie 管理，不将其导出到 UserDefaults、日志或分享面板。
 
-原生不注入密码，不实现第二套刷新。注销使用 Web 原有注销；“清除当前连接数据”是独立操作，清理该 dataStore 后新建浏览器，不伪装成服务端撤销其他设备。
+原生不注入密码，不实现第二套刷新。注销使用 Web 原有注销；外壳不提供清除连接数据操作。
 
 同一 origin 的多个 Raft 协作空间由 Web 管理，不人为分裂登录；不同 origin 的部署不会共享 cookie/localStorage。
 
@@ -161,11 +182,13 @@ API 可能与 Web 不同源，由该网页现有构建配置控制。首版不�
 
 ## 原生与 Web 边界
 
-连接后不占用顶部整条网址栏；角落连接菜单提供系统返回、刷新、改地址和清数据。WKWebView 延伸至容器底部，由 Web 的 safe-area 处理底部导航；键盘安全区域仍由 SwiftUI 处理。UIKit 的自动 scroll inset 关闭，避免再次扣掉 home indicator 高度。Web 拥有产品导航。首版不注入 `window.RaftHost`。未来需要原生事件时，另行定义单向事件合同。不要注入 `__TAURI_INTERNALS__` 或冒充 Desktop 环境，否则会触发官网生产/staging 地址验证。
+连接后不占用顶部整条网址栏；Settings 根列表增加“App 连接”区域，只提供服务器设置，不显示常驻三点菜单。WKWebView 延伸至容器底部，由 Web 的 safe-area 处理底部导航；键盘安全区域仍由 SwiftUI 处理。UIKit 的自动 scroll inset 关闭，避免再次扣掉 home indicator 高度。Web 拥有产品导航。`window.RaftHost` 可用于单向生命周期通知，安装在 document start、仅主 frame。不要注入 `__TAURI_INTERNALS__` 或冒充 Desktop 环境，否则会触发官网生产/staging 地址验证。
 
 普通同源导航留在 WebView。外部普通链接交给系统浏览器；网页新窗口按链接策略处理；OAuth 不能沿用普通外链处理声称已经支持。未知 scheme 不执行，系统电话/邮件链接由明确列表允许。
 
-首版没有原生事件桥，不从网页接收任意原生命令、目标地址或凭据。
+连接设置使用独立 raftConnection 消息桥，只接受当前部署主 frame 的服务器设置动作，不接受地址、凭据或任意原生命令。外壳不根据桥接消息发送推送、登出其他设备或更改数据。
+
+设置入口通过 document-end 主 frame 脚本挂载到 `[data-testid="settings-sidebar-list"]`，复用现有行的样式与主题。只在 `/settings` 或 `/s/<slug>/settings` 根页显示；MutationObserver 处理 SPA 重绘与导航，避免重复挂载。此处新增一项明确的 Web DOM 合同；若上游移除该入口，需要适配，网络错误页仍可修改地址。打开与取消地址设置不重建 WebView，不刷新网页。桥接代理弱引用浏览器，防止循环持有。
 
 ## 失效与诊断
 
@@ -178,9 +201,9 @@ API 可能与 Web 不同源，由该网页现有构建配置控制。首版不�
 
 后续 `PushCoordinator` 负责通知授权、设备 token 和点击路由；后端负责注册、撤销、APNs 投递。若用户只拥有官网协作空间，需要先确认平台允许个人 App 的推送身份；不可直接复用官方 App 的签名/推送凭据。
 
-## 参考接口
+## 源码依据
 
-外壳不包含 Raft 服务端或 Web 源码。下列上游模块用于理解兼容边界：
+相关 Raft Web / 服务端源码位置：
 
 - `packages/web/src/store/mobileNavStore.ts`、`components/layout/LeftRail.tsx`：手机导航。
 - `packages/web/src/api/client.ts`、`api/socket.ts`、`desktopRuntimeEnvironment.ts`：REST/Socket 地址和 Web token 所有权。
@@ -189,6 +212,21 @@ API 可能与 Web 不同源，由该网页现有构建配置控制。首版不�
 - `packages/server/src/routes/push.ts`、`services/pushService.ts`：原生推送注册/撤销/APNs 配置和功能开关。
 
 Apple：[WebKit 数据存储](https://developer.apple.com/documentation/webkit/wkwebsitedatastore)、[WKNavigationDelegate](https://developer.apple.com/documentation/webkit/wknavigationdelegate)。
+
+## Widget
+
+WidgetKit extension 与 App 共享 Foundation 模型和 SwiftUI 摘要布局。App从当前 WebView 的同源 GET 请求获取摘要（token 只在网页内部使用），通过 raftWidgetSnapshot 主frame桥提交经过字段和范围校验的快照。AppGroup写文件采用原子替换，Widget无网络／凭据访问。前台30秒一次、完成页面导航和回到前台时同步；切换部署先清摘要，迟到的旧网页响应不能覆盖新配置。Widget timeline 负责在15分钟后切换为过期提示；点链接通过当前profile检查回到Web路由。签名App与extension共用AppGroup，默认group.com.example.raftpersonal。
+
+
+### 图片附件兼容
+
+ComposerPreviewStyle 作为局部同源主 frame 样式修正，补齐 Web 图片附件拖动容器的百分比高度传递。使用既有语义 data-slot，不改变服务端、消息发送或图片上传行为。样式独立于 Web 的主题和上传逻辑；后续 Web 消除该结构问题时可移除此兼容层。
+
+
+### FR-19 触摸行为
+
+HomeTouchPolicy 只在连接 origin 的主 frame 安装，只处理触摸 pointerdown 且目标处于 data-sidebar-drag-item 内；不 preventDefault、不处理 touchstart，所以网页的长按触摸传感器及点按、滚动继续工作。输入控件和菜单触发按钮不匹配该拦截。WebView 边缘历史手势关闭；页面的 tab 与返回按钮继续由 Web 管理。验证结果另放工作区报告。
+
 
 ---
 
@@ -222,9 +260,15 @@ origin 的等价性包括协议、规范化 host 和有效端口；默认端口�
 
 ## 存储与恢复合同
 
-每个规范化部署 origin 映射一个稳定 dataStore UUID；重开连接继续使用它。改到其他 origin 不复制原来的 Web 存储。清除当前连接时只删除该连接的 WebKit 数据，其他配置/会话不变。
+每个规范化部署 origin 映射一个稳定 dataStore UUID；重开连接继续使用它。改到其他 origin 不复制原来的 Web 存储。外壳不提供清除连接数据入口；注销使用网页原有功能。
 
 最近路径仅在正常网页导航完成后保存：同源，非 `/auth/` 等敏感认证路由，不含 query/fragment。重开优先加载该路径，否则根路径。恢复导航失败可回根路径；不无限循环。
+
+## App 连接设置
+
+只在 Settings 根页的 `settings-sidebar-list` 中显示 App 连接操作；其他页面没有外壳悬浮按钮。现有网页列表行提供主题样式，原生只负责服务器地址设置。地址设置取消后继续使用同一 WebView。
+
+`window.webkit.messageHandlers.raftConnection` 只接收固定字符串 `settings`。只接受当前配置 origin 的主 frame 且当前页面仍在 Settings 根路径；未知消息和子 frame 均忽略，不接收任意 URL、脚本或 token。
 
 ## 可选 `raft-host-v1` 桥
 
@@ -232,7 +276,7 @@ origin 的等价性包括协议、规范化 host 和有效端口；默认端口�
 
 允许观察 `session:logout`、`session:server-switched`、`session:server-left`、`session:server-deleted`、`session:token-refresh-failed`。这些事件不是授权原生发送业务请求的命令。对未实现的 onboarding 能力不注入 `onboarding` 属性。
 
-首版不安装桥；无桥时 Web 正常运行。后续接入桥时需要另行实现并验证上述合同。
+首版允许不安装桥；无桥时 Web 正常运行。产品功能不依赖桥被检测到。
 
 ## 后续独立 API 合同
 
@@ -241,6 +285,77 @@ origin 的等价性包括协议、规范化 host 和有效端口；默认端口�
 ## 版本与发布
 
 首版系统 iOS 17+。交付 Xcode 工程、模拟器可运行构建和功能账簿。验证结果另行报告，不放项目。用户选择签名 Team 后可真机安装；不包含自动上传/发布 TestFlight，也不把模拟器 `.app` 当成 iPhone 可安装包。
+
+## Widget 数据合同
+
+App Group 的 widget-snapshot.json 保存版本、profile UUID、状态、serverSlug/name、todo/inProgress/inReview、unreadMessages/unreadActivity、最多三条最近任务（标题最多120字、状态、数字）及同步时间。字段白名单；不保存用户标识、凭据、消息正文、任意 URL。仅接受当前 origin 主 frame 的有限 JSON，限制16KB；数据校验失败拒绝。同步过程只 GET，不修改任务/已读状态，不运行第二套 token refresh。当前实现支持与 Web 同源的 /api；接口失败显示不可用，不猜测 API 地址。
+
+Widget 点击 raftpersonal://widget?profile=<UUID>&server=<slug>&section=tasks|activity 只在 profile 等于当前活动配置且 slug 格式合法时导航；忽略外部 URL、非法动作和旧部署链接。任务列表使用可见任务分页摘要，读取上限2500项，超过上限显示计数下限标记。Widget只展示共享快照，15分钟后提示更新。AppGroup命名通过RAFT_APP_GROUP_ID统一配置，App和extension必须签名到同一个Team且启用相同Group。
+
+
+## 附件预览兼容样式
+
+只在当前连接 origin 的主 frame 注入 ComposerPreviewStyle。选择器限定有 composer-attachment-image 子项的 composer-attachment 直接悬停／拖动容器，继承父预览框的宽高；不读取附件内容、不修改草稿，不增加网页消息动作或请求。图片卡片继续由 Web 拥有颜色、固定尺寸、裁切、上传、删除与拖动；普通文件卡片不匹配兼容选择器。SPA 重绘后样式继续生效。
+
+
+### FR-19 触摸行为
+
+HomeTouchPolicy 只在连接 origin 的主 frame 安装，只处理触摸 pointerdown 且目标处于 data-sidebar-drag-item 内；不 preventDefault、不处理 touchstart，所以网页的长按触摸传感器及点按、滚动继续工作。输入控件和菜单触发按钮不匹配该拦截。WebView 边缘历史手势关闭；页面的 tab 与返回按钮继续由 Web 管理。验证结果另放工作区报告。
+
+
+---
+
+# Featurelist — 功能账簿
+
+目标：保持一个最简、随 Web 升级的 iOS 外壳。本期不接 OAuth；功能范围与实现状态记录在此。
+
+状态定义：`开发中`、`已实现`、`后续`。已实现只表示代码具备该功能；真实部署和真机验证结果单独报告。
+
+## 首版
+
+| 编号 | 功能 | 状态 | 实现位置 / 边界 |
+|---|---|---|---|
+| FR-01 | 自定义 Raft 网页根地址 | 已实现 | URLPolicy、ConnectionView；配置页沿用站内默认视觉，不覆盖网页的 API 配置 |
+| FR-02 | 复用现有手机 UI | 已实现 | BrowserSession、RaftWebView；不复制 Raft 产品导航/消息逻辑 |
+| FR-03 | 每个部署独立持久登录 | 已实现 | ConnectionStore、WebKit 专属数据存储 |
+| FR-04 | 服务器设置、外链 | 已实现 | BrowserSession、BrowserView；连接后无网址栏，Settings 根页的 App 连接列表提供操作，没有常驻菜单 |
+| FR-05 | 加载/HTTP/网络错误恢复 | 已实现 | BrowserSession；失败不清登录 |
+| FR-06 | 保留 WebView 与页面内状态 | 已实现 | ShellModel；前台不强制刷新，重开恢复安全路径 |
+| FR-07 | 键盘、安全区域和系统主题 | 已实现 | SwiftUI + WebKit；Web 负责底部 safe-area，外壳不重复补边距；产品主题仍由网页控制 |
+| FR-08 | Web 原有照片/文件上传入口 | 开发中 | 用户报告真机上传失败，正在定位；系统文件 input 不等于真实上传链路已验证；原生下载/分享后续 |
+| FR-09 | 地址限制、证书校验与凭据边界 | 已实现 | URLPolicy、系统 TLS；原生不管理用户 token |
+| FR-16 | Raft App 图标 | 已实现 | Assets.xcassets/AppIcon；使用独立的通用连接图标，系统处理圆角 |
+
+## 后续 / 明确不做
+
+| 编号 | 功能 | 状态 | 进入条件 |
+|---|---|---|---|
+| FR-10/11 | APNs、角标、通知定位 | 后续 | 自有 App 身份及后端支持 |
+| FR-12 | 原生分享/附件下载预览 | 后续 | 用户有实际需求 |
+| FR-13 | OAuth | 后续，本期不接 | 用户重新确认需求，并定义系统回调合同 |
+| FR-14 | 独立 API/Socket 地址覆盖 | 后续 | 单一 Web 地址不足以满足部署方式 |
+| FR-15 | 本地 H5 包 | 后续 | 在线加载性能确有问题；否则不引入更新链 |
+
+## 升级约定
+
+- raft-source 更新后，Web 按原地址部署，外壳自动加载新版；通常无需发新 iOS 包。
+- 连接设置入口依赖 Settings 根页的 settings-sidebar-list 标记，并复用现有列表行样式；该 DOM 合同变化时需要适配。消息/API/Socket 和认证仍由 Web 管理；不注入 RaftHost 桥。
+- Web 的认证方式/域名变化，或者新增原生能力时，重新评估合同；不能承诺任何上游变化都零适配。
+
+## Widget（0.2.0）
+
+FR-17：提供 iPhone 桌面小号／中号 Widget，展示当前协作空间可见任务的待办、进行中、待审核数量，未读消息／Activity 通知，以及最近任务与最后同步时间。点任务或通知进入 App 对应页面。没有数据、未登录、请求失败、数据过期分别表达，未知数字显示“—”，不能伪装成零。
+
+网页登录仍是唯一认证所有者。App 前台以当前网页会话读取同源 API，只把经校验的计数、任务摘要、配置标识和时间共享给 Widget；不共享 access/refresh token。切换部署或注销时清除旧摘要。Widget 展示最近一次 App 同步的快照，不提供独立后台登录或 APNs 实时通知。WidgetKit 调度刷新；历史快照超过 15 分钟显示“打开 App 更新”。
+
+
+- FR-18 图片附件预览高度：0.2.1（7）补齐图片拖动容器的高度继承；普通文件、移除按钮与草稿布局保持原行为。验收记录放工作区报告。真机上传请求问题仍独立跟进，不以预览修正代替上传验收。
+
+
+### FR-19 触摸行为
+
+HomeTouchPolicy 只在连接 origin 的主 frame 安装，只处理触摸 pointerdown 且目标处于 data-sidebar-drag-item 内；不 preventDefault、不处理 touchstart，所以网页的长按触摸传感器及点按、滚动继续工作。输入控件和菜单触发按钮不匹配该拦截。WebView 边缘历史手势关闭；页面的 tab 与返回按钮继续由 Web 管理。验证结果另放工作区报告。
+
 
 ---
 
@@ -273,42 +388,3 @@ origin 的等价性包括协议、规范化 host 和有效端口；默认端口�
 ## 后果
 
 首版依赖网络与目标 Web 版本；Google 等 OAuth 不能假设在内嵌网页可用。原生推送仍需 App 身份与后端配置。独立数据存储要求最低 iOS17。网页升级会直接影响 App，因此联调必须针对用户实际部署，不仅针对源码快照。
-
----
-
-# Featurelist — 功能账簿
-
-目标：保持一个最简、随 Web 升级的 iOS 外壳。本期不接 OAuth；功能范围与实现状态记录在此。
-
-状态定义：`开发中`、`已实现`、`后续`。已实现只表示代码具备该功能；真实部署和真机验证结果单独报告。
-
-## 首版
-
-| 编号 | 功能 | 状态 | 实现位置 / 边界 |
-|---|---|---|---|
-| FR-01 | 自定义 Raft 网页根地址 | 已实现 | URLPolicy、ConnectionView；配置页沿用站内默认视觉，不覆盖网页的 API 配置 |
-| FR-02 | 复用现有手机 UI | 已实现 | BrowserSession、RaftWebView；不复制 Raft 产品导航/消息逻辑 |
-| FR-03 | 每个部署独立持久登录 | 已实现 | ConnectionStore、WebKit 专属数据存储 |
-| FR-04 | 返回、刷新、首页、改地址、外链 | 已实现 | BrowserSession、BrowserView；连接后无网址栏，角落菜单保留操作 |
-| FR-05 | 加载/HTTP/网络错误恢复 | 已实现 | BrowserSession；失败不清登录 |
-| FR-06 | 保留 WebView 与页面内状态 | 已实现 | ShellModel；前台不强制刷新，重开恢复安全路径 |
-| FR-07 | 键盘、安全区域和系统主题 | 已实现 | SwiftUI + WebKit；Web 负责底部 safe-area，外壳不重复补边距；产品主题仍由网页控制 |
-| FR-08 | Web 原有照片/文件上传入口 | 开发中 | 系统文件 input 入口；真实照片/文件上传链路尚未验证；原生下载/分享后续 |
-| FR-09 | 地址限制、证书校验与凭据边界 | 已实现 | URLPolicy、系统 TLS；原生不管理用户 token |
-| FR-16 | Raft App 图标 | 已实现 | Assets.xcassets/AppIcon；使用独立的通用连接图标，系统处理圆角 |
-
-## 后续 / 明确不做
-
-| 编号 | 功能 | 状态 | 进入条件 |
-|---|---|---|---|
-| FR-10/11 | APNs、角标、通知定位 | 后续 | 自有 App 身份及后端支持 |
-| FR-12 | 原生分享/附件下载预览 | 后续 | 用户有实际需求 |
-| FR-13 | OAuth | 后续，本期不接 | 用户重新确认需求，并定义系统回调合同 |
-| FR-14 | 独立 API/Socket 地址覆盖 | 后续 | 单一 Web 地址不足以满足部署方式 |
-| FR-15 | 本地 H5 包 | 后续 | 在线加载性能确有问题；否则不引入更新链 |
-
-## 升级约定
-
-- raft-source 更新后，Web 按原地址部署，外壳自动加载新版；通常无需发新 iOS 包。
-- 不绑定 Web DOM、CSS 类名、API 字段和 Socket 事件。首版不注入 RaftHost 桥，所以其事件变化也不需要外壳适配。
-- Web 的认证方式/域名变化，或者新增原生能力时，重新评估合同；不能承诺任何上游变化都零适配。

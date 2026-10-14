@@ -10,7 +10,6 @@ struct RaftWebView: UIViewRepresentable {
 struct BrowserView: View {
     @ObservedObject var session: BrowserSession
     let edit: () -> Void
-    let clear: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,49 +38,29 @@ struct BrowserView: View {
             }
         }
         .ignoresSafeArea(.container, edges: .bottom)
-        .overlay(alignment: .topTrailing) {
-            Menu {
-                Button("返回", systemImage: "chevron.left", action: session.goBack)
-                    .disabled(!session.canGoBack)
-                Button("刷新", systemImage: "arrow.clockwise", action: session.reload)
-                Button("回到首页", systemImage: "house", action: session.goHome)
-                Button("服务器设置", systemImage: "network", action: edit)
-                Divider()
-                Button("清除当前连接数据", systemImage: "trash", role: .destructive, action: clear)
-            } label: {
-                Image(systemName: "ellipsis").font(.body.bold())
-                    .foregroundStyle(Color.primary)
-                    .frame(width: 36, height: 32)
-                    .background(Color(uiColor: .systemBackground))
-                    .overlay(Rectangle().strokeBorder(Color.primary, lineWidth: 2))
-                    .padding(6).contentShape(Rectangle())
-            }
-            .accessibilityLabel("连接菜单").accessibilityIdentifier("connectionMenu")
-            .padding(.top, 4).padding(.trailing, 6)
-        }
+        .onReceive(session.serverSettingsRequests) { _ in edit() }
         .onAppear { session.start() }
     }
 }
 
 struct ShellView: View {
     @StateObject private var model = ShellModel()
-    @State private var confirmingClear = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
-            if model.clearingData {
-                ProgressView("正在清除当前连接数据…")
-            } else if let browser = model.browser {
-                BrowserView(session: browser, edit: { model.editingConnection = true }, clear: { confirmingClear = true })
+            if let browser = model.browser {
+                BrowserView(session: browser, edit: { model.editingConnection = true })
             } else {
                 ConnectionView(initialAddress: "", isEditing: false, connect: model.connect)
             }
         }
+        .onOpenURL { model.openWidget($0) }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.browser?.refreshWidget() }
+        }
         .sheet(isPresented: $model.editingConnection) {
             ConnectionView(initialAddress: model.browser?.profile.origin.absoluteString ?? "", isEditing: true, connect: model.connect)
         }
-        .confirmationDialog("清除当前部署在本机的登录与网页数据？", isPresented: $confirmingClear, titleVisibility: .visible) {
-            Button("清除当前连接数据", role: .destructive) { Task { await model.clearCurrentData() } }
-        } message: { Text("其他部署的数据会保留。当前部署需要重新登录。") }
     }
 }

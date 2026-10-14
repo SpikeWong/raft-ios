@@ -20,8 +20,8 @@ final class RaftPersonalUITests: XCTestCase {
     }
 
     private func edit(in app: XCUIApplication) {
-        app.buttons["connectionMenu"].tap()
-        app.buttons["服务器设置"].tap()
+        app.webViews.buttons["Settings"].tap()
+        app.webViews.buttons["服务器设置"].tap()
     }
 
     func testInvalidAddressShowsInlineError() {
@@ -38,9 +38,10 @@ final class RaftPersonalUITests: XCTestCase {
         let draft = app.webViews.textFields["Draft"]
         draft.tap()
         draft.typeText("private-draft")
-        app.buttons["connectionMenu"].tap()
-        app.buttons["服务器设置"].tap()
+        app.webViews.buttons["Settings"].tap()
+        app.webViews.buttons["服务器设置"].tap()
         app.buttons["取消"].tap()
+        XCTAssertFalse(app.buttons["connectionMenu"].exists)
         XCTAssertEqual(draft.value as? String, "private-draft", "Opening settings must not rebuild WebView")
 
         edit(in: app)

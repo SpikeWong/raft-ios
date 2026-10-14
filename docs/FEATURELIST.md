@@ -11,11 +11,11 @@
 | FR-01 | 自定义 Raft 网页根地址 | 已实现 | URLPolicy、ConnectionView；配置页沿用站内默认视觉，不覆盖网页的 API 配置 |
 | FR-02 | 复用现有手机 UI | 已实现 | BrowserSession、RaftWebView；不复制 Raft 产品导航/消息逻辑 |
 | FR-03 | 每个部署独立持久登录 | 已实现 | ConnectionStore、WebKit 专属数据存储 |
-| FR-04 | 返回、刷新、首页、改地址、外链 | 已实现 | BrowserSession、BrowserView；连接后无网址栏，角落菜单保留操作 |
+| FR-04 | 服务器设置、外链 | 已实现 | BrowserSession、BrowserView；连接后无网址栏，Settings 根页的 App 连接列表提供操作，没有常驻菜单 |
 | FR-05 | 加载/HTTP/网络错误恢复 | 已实现 | BrowserSession；失败不清登录 |
 | FR-06 | 保留 WebView 与页面内状态 | 已实现 | ShellModel；前台不强制刷新，重开恢复安全路径 |
 | FR-07 | 键盘、安全区域和系统主题 | 已实现 | SwiftUI + WebKit；Web 负责底部 safe-area，外壳不重复补边距；产品主题仍由网页控制 |
-| FR-08 | Web 原有照片/文件上传入口 | 开发中 | 系统文件 input 入口；真实照片/文件上传链路尚未验证；原生下载/分享后续 |
+| FR-08 | Web 原有照片/文件上传入口 | 开发中 | 用户报告真机上传失败，正在定位；系统文件 input 不等于真实上传链路已验证；原生下载/分享后续 |
 | FR-09 | 地址限制、证书校验与凭据边界 | 已实现 | URLPolicy、系统 TLS；原生不管理用户 token |
 | FR-16 | Raft App 图标 | 已实现 | Assets.xcassets/AppIcon；使用独立的通用连接图标，系统处理圆角 |
 
@@ -32,5 +32,19 @@
 ## 升级约定
 
 - raft-source 更新后，Web 按原地址部署，外壳自动加载新版；通常无需发新 iOS 包。
-- 不绑定 Web DOM、CSS 类名、API 字段和 Socket 事件。首版不注入 RaftHost 桥，所以其事件变化也不需要外壳适配。
+- 连接设置入口依赖 Settings 根页的 settings-sidebar-list 标记，并复用现有列表行样式；该 DOM 合同变化时需要适配。消息/API/Socket 和认证仍由 Web 管理；不注入 RaftHost 桥。
 - Web 的认证方式/域名变化，或者新增原生能力时，重新评估合同；不能承诺任何上游变化都零适配。
+
+## Widget（0.2.0）
+
+FR-17：提供 iPhone 桌面小号／中号 Widget，展示当前协作空间可见任务的待办、进行中、待审核数量，未读消息／Activity 通知，以及最近任务与最后同步时间。点任务或通知进入 App 对应页面。没有数据、未登录、请求失败、数据过期分别表达，未知数字显示“—”，不能伪装成零。
+
+网页登录仍是唯一认证所有者。App 前台以当前网页会话读取同源 API，只把经校验的计数、任务摘要、配置标识和时间共享给 Widget；不共享 access/refresh token。切换部署或注销时清除旧摘要。Widget 展示最近一次 App 同步的快照，不提供独立后台登录或 APNs 实时通知。WidgetKit 调度刷新；历史快照超过 15 分钟显示“打开 App 更新”。
+
+
+- FR-18 图片附件预览高度：0.2.1（7）补齐图片拖动容器的高度继承；普通文件、移除按钮与草稿布局保持原行为。验收记录放工作区报告。真机上传请求问题仍独立跟进，不以预览修正代替上传验收。
+
+
+### FR-19 触摸行为
+
+HomeTouchPolicy 只在连接 origin 的主 frame 安装，只处理触摸 pointerdown 且目标处于 data-sidebar-drag-item 内；不 preventDefault、不处理 touchstart，所以网页的长按触摸传感器及点按、滚动继续工作。输入控件和菜单触发按钮不匹配该拦截。WebView 边缘历史手势关闭；页面的 tab 与返回按钮继续由 Web 管理。验证结果另放工作区报告。

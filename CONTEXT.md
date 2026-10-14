@@ -1,13 +1,14 @@
 # Raft Personal iOS
 
-一个可配置部署地址的非官方 Raft iOS 客户端：在线加载现有 Raft 手机 Web UI，原生仅负责连接配置、网页生命周期与系统导航。
+一个可配置部署地址的非官方 Raft iOS 客户端：在线加载现有 Raft 手机 Web UI，原生负责连接配置、网页生命周期、系统导航与只读 Widget 摘要。
 
 ## 项目范围
 
 - SwiftUI + WKWebView，最低 iOS 17；不包含或修改 Raft Web / 服务端源码。
 - 只配置网页根地址；API、Socket、认证与产品导航由目标网页负责。
 - 不注入 RaftHost，不重写登录或消息同步，不接 APNs 或外部 OAuth 回调。
-- 相同地址的网页部署升级通常无需重新发布原生 App；域名、认证合同或原生能力变化需要重新评估。
+- Settings 服务器设置、Widget 摘要、附件预览与触摸策略依赖文档化的网页 DOM/API 合同；网页合同变化需要重新评估。
+- Widget 使用同源只读 API 和 App Group 摘要；不在扩展中保存认证信息或独立登录。
 - Bundle Identifier 使用通用示例，签名 Team 由使用者本地配置。
 
 ## 文档入口
